@@ -1,14 +1,28 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { SWRConfig } from 'swr';
 import { BrowserRouter } from 'react-router-dom';
-import './index.css';
-import App from './components/App';
+import { App } from 'components/App';
+import { GlobalStyles } from 'styles/GlobalStyles.styled';
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
+const fetcher = async (...args) => {
+  const res = await fetch(...args);
+  if (!res.ok) {
+    const error = new Error('An error occurred while fetching the data.');
+    error.info = await res.json();
+    error.status = res.status;
+    throw error;
+  }
+  return res.json();
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter basename="/goit-react-hw-05-movies">
-      <App />
+    <BrowserRouter basename={process.env.PUBLIC_URL}>
+      <SWRConfig value={{ fetcher }}>
+        <GlobalStyles />
+        <App />
+      </SWRConfig>
     </BrowserRouter>
   </React.StrictMode>
 );

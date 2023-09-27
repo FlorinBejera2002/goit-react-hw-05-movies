@@ -1,89 +1,55 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Notify } from 'notiflix/build/notiflix-notify-aio';
-import Pagination from 'components/Pagination';
-import { Container } from '@mui/system';
-import { getMovie } from 'services/movieAPI';
-import SearchForm from 'components/SearchForm';
-import MovieList from 'components/MovieList';
-import Loader from 'components/Loader';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+import { Wrapper } from 'styles/GlobalStyles.styled';
+import { SearchBox } from 'components/SearchBox/SearchBox';
+import { MoviesList } from 'components/MoviesList/MoviesList';
+import { PageButtons } from 'components/Buttons/PageButtons';
+import { useRequest } from '../services/useRequest';
 
-export default function Movies() {
-  const [movies, setMovies] = useState([]);
-  const [totalPages, setTotalPages] = useState(1);
-  const [loading, setLoading] = useState(false);
+const Movies = () => {
+  const [page, setPage] = useState(1);
   const [searchParams, setSearchParams] = useSearchParams();
-  const query = searchParams.get('query') ?? '';
-  const page = searchParams.get('page') ?? 1;
+  const movieName = searchParams.get('query') || '';
+  const { data, error } = useRequest('/search/movie', page, movieName || { query: '' });
 
-  useEffect(() => {
-    if (!query) {
-      setMovies(null);
-      setTotalPages(1);
-      return;
-    }
-
-    setLoading(true);
-    const fetchMovies = async () => {
-      try {
-        const res = await getMovie(`/search/movie?query=${query}&page=${page}`);
-
-        if (res?.results.length === 0) {
-          Notify.failure('Sorry, no movies found');
-          setMovies(null);
-          setTotalPages(1);
-          return;
-        }
-
-        setTotalPages(res?.total_pages);
-        setMovies(res?.results);
-      } catch (err) {
-        Notify.failure(`Error: ${err.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMovies();
-  }, [query, page]);
-
-  const handleSubmit = e => {
-    e.preventDefault();
-
-    const form = e.currentTarget;
-    const query = form.elements.query.value.trim();
-
-    if (!query) {
-      Notify.warning('Enter the name of the movie, for a correct search!');
-      return;
-    }
-
-    setSearchParams({ query, page: 1 });
-    form.reset();
+  const updateQueryString = query => {
+    const nextParams = query !== '' && { query };
+    setSearchParams(nextParams);
   };
 
-  const handlePaginationChange = (_, value) => {
-    setSearchParams({ query, page: value });
-    window.scrollTo(0, 0);
-  };
-
-  const isNotEmptyList = movies?.length > 0;
-  const isPagination = totalPages > 1;
+  const handlePageChange = useCallback(
+    page => {
+      setPage(page);
+    },
+    [setPage]
+  );
 
   return (
-    <>
-      <Container sx={{ pt: 2, pb: 2 }}>
-        <SearchForm onSubmit={handleSubmit} />
-        {isNotEmptyList && <MovieList movies={movies} />}
-        {isPagination && (
-          <Pagination
-            count={totalPages}
-            onChange={handlePaginationChange}
-            page={Number(page)}
-          />
+    <Wrapper>
+      <SkeletonTheme baseColor="#dddddd" highlightColor="#a5a5a5">
+        <SearchBox value={movieName} onChange={updateQueryString} />
+        {error && <h2>failed to load</h2>}
+        {!data && searchParams !== '' ? (
+          <Skeleton count={15} style={{ height: 30, width: 300, marginTop: 15 }} />
+        ) : data?.total_results === 0 && movieName && !error ? (
+          <h2>No results found</h2>
+        ) : (
+          <>
+            <MoviesList movies={data.results} />
+            {data.total_pages > 1 && (
+              <PageButtons
+                page={page}
+                totalPages={data.total_pages}
+                handlePageChange={handlePageChange}
+              />
+            )}
+          </>
         )}
-      </Container>
-      <Loader open={loading} />
-    </>
+      </SkeletonTheme>
+    </Wrapper>
   );
-}
+};
+
+export default Movies;
